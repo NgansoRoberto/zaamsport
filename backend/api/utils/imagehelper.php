@@ -11,5 +11,9 @@ function normalize_images(array $images): array {
             $result[] = $default;
         }
     }
+    // Si aucune image valide, on charge l'image par défaut du backend
+    if (empty($result) && $default !== '') {
+        $result[] = $default;
+    }
     return $result;
 }
