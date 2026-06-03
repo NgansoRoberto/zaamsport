@@ -212,7 +212,30 @@ class ClubController {
     }
 
     public function getClubById($id) {
-        // ... inchangé ...
+        header('Content-Type: application/json');
+        $stmt = $this->pdo->prepare("
+            SELECT id, name, address, type, pmr, status, avg_rating,
+                   equipment, hours, prices, images, lat, lng
+            FROM fitness_centers
+            WHERE id = ? AND status = 'approved'
+        ");
+        $stmt->execute([$id]);
+        $center = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$center) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Centre introuvable']);
+            return;
+        }
+
+        $center['equipment'] = json_decode($center['equipment'], true) ?? [];
+        $center['hours']     = json_decode($center['hours'], true) ?? [];
+        $center['prices']    = json_decode($center['prices'], true) ?? [];
+        $center['images']    = normalize_images(json_decode($center['images'], true) ?? []);
+        $center['lat']       = floatval($center['lat']);
+        $center['lng']       = floatval($center['lng']);
+
+        echo json_encode($center);
     }
 }
 ?>
