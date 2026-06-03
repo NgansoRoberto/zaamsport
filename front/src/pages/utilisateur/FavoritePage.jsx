@@ -9,6 +9,7 @@ import Button from '../../components/common/Button';
 import Toggle from '../../components/common/Toggle';
 import FilterBar from '../../components/common/FilterBar';
 import CenterCard from '../../components/common/CenterCard';
+import { API_BASE } from '../../hooks/API';
 
 
 function ChangeView({ center, zoom }) {
@@ -78,7 +79,7 @@ function Clubs() {
     setLoading(true);
     try {
       const userId = localStorage.getItem('userId');
-      let url = `${import.meta.env.VITE_API_BASE_URL}/clubs?lat=${lat}&lng=${lng}&radius=${radius}`;
+      let url = `${API_BASE}/clubs?lat=${lat}&lng=${lng}&radius=${radius}`;
       if (userId) url += `&user_id=${userId}`;
       const response = await fetch(url);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -105,7 +106,7 @@ function Clubs() {
   const fetchReviews = async (centerId) => {
     if (!centerId) return;
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/reviews?center_id=${centerId}`);
+      const response = await fetch(`${API_BASE}/reviews?center_id=${centerId}`);
       if (!response.ok) throw new Error();
       const data = await response.json();
       setReviews(data);
@@ -136,7 +137,7 @@ function Clubs() {
     }
     if (!selectedCenter) return;
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/reviews`, {
+      const response = await fetch(`${API_BASE}/reviews`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

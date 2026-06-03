@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import Header from '../../components/Layout/Header';
 import Footer from '../../components/Layout/Footer';
 import Button from '../../components/common/Button';
+import { API_BASE } from '../../hooks/API';
 
 function QuestionnairePage() {
   const navigate = useNavigate();
@@ -128,7 +129,7 @@ function QuestionnairePage() {
       const token = localStorage.getItem('token');
       if (token) {
         try {
-          await fetch(`${import.meta.env.VITE_API_BASE_URL}/profile`, {
+          await fetch(`${API_BASE}/profile`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

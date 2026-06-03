@@ -1,6 +1,6 @@
 // Toujours absolu depuis la racine du site — évite les URL relatives à la page courante
 const _raw = import.meta.env.VITE_API_BASE_URL ?? '/api';
-const API_BASE = _raw.startsWith('http') ? _raw : '/' + _raw.replace(/^\/+/, '');
+export const API_BASE = _raw.startsWith('http') ? _raw : '/' + _raw.replace(/^\/+/, '');
 
 async function parseError(response) {
   try {

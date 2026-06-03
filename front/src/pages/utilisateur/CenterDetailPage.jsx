@@ -4,6 +4,7 @@ import { useParams, Link } from 'react-router-dom';
 import Header from '../../components/Layout/Header';
 import Footer from '../../components/Layout/Footer';
 import Button from '../../components/common/Button';
+import { API_BASE } from '../../hooks/API';
 
 function ImageCarousel({ images }) {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -40,7 +41,7 @@ function ImageCarousel({ images }) {
   useEffect(() => {
   const fetchClub = async () => {
   try {
-    const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/clubs/${id}`);
+    const res = await fetch(`${API_BASE}/clubs/${id}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     let data = await res.json();
     // Transformation des images (comme dans ClubsPage)
@@ -56,7 +57,7 @@ function ImageCarousel({ images }) {
 };
     const fetchReviews = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/reviews?center_id=${id}`);
+        const res = await fetch(`${API_BASE}/reviews?center_id=${id}`);
         const data = await res.json();
         setReviews(data);
         const token = localStorage.getItem('token');
@@ -81,7 +82,7 @@ function ImageCarousel({ images }) {
     if (!newComment.trim()) return alert('Veuillez saisir un commentaire');
     setSubmitting(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/reviews`, {
+      const res = await fetch(`${API_BASE}/reviews`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ center_id: id, rating: parseInt(newRating), comment: newComment })
@@ -89,7 +90,7 @@ function ImageCarousel({ images }) {
       if (res.ok) {
         alert('Merci pour votre avis !');
         // Rafraîchir les avis
-        const newRes = await fetch(`${import.meta.env.VITE_API_BASE_URL}/reviews?center_id=${id}`);
+        const newRes = await fetch(`${API_BASE}/reviews?center_id=${id}`);
         const data = await newRes.json();
         setReviews(data);
         const userId = localStorage.getItem('userId');
