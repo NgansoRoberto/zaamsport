@@ -2,11 +2,11 @@
   "rewrites": [
     {
       "source": "/api",
-      "destination": "https://zaamsport-api.onrender.com/"
+      "destination": "https://zaamsport.onrender.com/"
     },
     {
       "source": "/api/:path*",
-      "destination": "https://zaamsport-api.onrender.com/:path*"
+      "destination": "https://zaamsport.onrender.com/:path*"
     },
     {
       "source": "/(.*)",
