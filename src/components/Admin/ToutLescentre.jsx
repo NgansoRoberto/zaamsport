@@ -1,7 +1,7 @@
 // src/components/admin/AllCentersList.jsx
 import { useState } from 'react';
 import { Search, Edit, Trash2 } from 'lucide-react';
-import StatutsBadge from '../manager/StatutsBadge';
+import StatutsBadge from '../Manager/StatutsBadge';
 
  function ToutLescentre({ centers, onEdit,   onDelete }) {
   const [search, setSearch] = useState("");

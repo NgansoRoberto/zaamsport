@@ -1,0 +1,8 @@
+api/vendor
+api/uploads
+api/php_errors.log
+api/info.php
+api/text_hash.php
+api/contollers/testerlescode.php
+**/.DS_Store
+**/.git

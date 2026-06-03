@@ -1,6 +1,6 @@
 <?php
 // api/controllers/AdminController.php
-require_once __DIR__ . '/../middleware/AuthMiddleware.php';
+require_once __DIR__ . '/../middleware/authmiddleware.php';
 
 class AdminController {
     private $pdo;

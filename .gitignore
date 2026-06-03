@@ -13,6 +13,15 @@ dist-ssr
 *.local
 .env
 .env.local
+backend/api/.env
+
+# PHP / Composer
+backend/api/vendor/
+backend/api/php_errors.log
+
+# Uploads locaux (utiliser R2/S3 en prod)
+backend/uploads/centers/*
+!backend/uploads/centers/.gitkeep
 
 # Editor directories and files
 .vscode/*

@@ -1,5 +1,12 @@
 {
     "require": {
-        "firebase/php-jwt": "^6.4"
+        "firebase/php-jwt": "^6.4",
+        "aws/aws-sdk-php": "^3.300"
+    },
+    "config": {
+        "audit": {
+            "abandoned": "report",
+            "ignore": ["PKSA-y2cr-5h3j-g3ys"]
+        }
     }
 }

@@ -1,16 +1,28 @@
 <?php
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
+ini_set('display_errors', getenv('APP_DEBUG') === '1' ? '1' : '0');
 ini_set('log_errors', 1);
 ini_set('error_log', __DIR__ . '/php_errors.log');
 
-header("Content-Type: application/json");
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization");
+// CORS dynamique : lit CORS_ORIGIN dans l'env, accepte plusieurs origines séparées par des virgules,
+// renvoie le bon header en écho de l'origine de la requête. Wildcard "*" toléré pour le dev.
+$allowedOrigins = getenv('CORS_ORIGIN') ?: '*';
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+if ($allowedOrigins === '*') {
+    header('Access-Control-Allow-Origin: *');
+} else {
+    $list = array_map('trim', explode(',', $allowedOrigins));
+    if (in_array($origin, $list, true)) {
+        header('Access-Control-Allow-Origin: ' . $origin);
+        header('Vary: Origin');
+    }
+}
+header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Authorization');
+header('Content-Type: application/json');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
+    http_response_code(204);
     exit();
 }
 
@@ -31,7 +43,6 @@ set_exception_handler(function($e) {
     json_error($e->getMessage(), 500);
 });
 
-// 1. Inclusions des fichiers - Vérifiez bien que votre dossier Windows s'appelle "controllers" avec un "r"
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/contollers/Authcontroller.php';
 require_once __DIR__ . '/contollers/clubscontroler.php';
@@ -40,31 +51,35 @@ require_once __DIR__ . '/contollers/admincontroler.php';
 require_once __DIR__ . '/contollers/Reviewcontroller.php';
 require_once __DIR__ . '/contollers/Profilecontroller.php';
 
-// 2. Traitement et nettoyage de la route
+// Détection robuste du chemin :
+// - En local Apache via Alias /lamfunsport/api/...  → on retire ce préfixe
+// - En prod (sous-domaine api.exemple.com/...)      → pas de préfixe à retirer
+// - Préfixe configurable via API_BASE_PATH si besoin
 $request_uri = $_SERVER['REQUEST_URI'];
 $path = parse_url($request_uri, PHP_URL_PATH);
-$base = '/lamfunsport/api';
 
-// On extrait la route après "/lamfunsport/api"
-if (strpos($path, $base) === 0) {
-    $path = substr($path, strlen($base));
+$basePath = getenv('API_BASE_PATH');
+if ($basePath === false || $basePath === '') {
+    // Auto-détection : si l'URL commence par /lamfunsport/api (compat dev historique), on l'enlève.
+    if (strpos($path, '/lamfunsport/api') === 0) {
+        $basePath = '/lamfunsport/api';
+    }
+}
+if ($basePath && strpos($path, $basePath) === 0) {
+    $path = substr($path, strlen($basePath));
 }
 
-// Sécurité : Si le path est vide, on force un slash
-if ($path === '') {
-    $path = '/';
-}
-
-// Optionnel mais recommandé : On retire le slash à la fin s'il y en a un (sauf si c'est la racine '/')
-// Exemple : "/login/" devient "/login"
+if ($path === '' || $path === false) $path = '/';
 if ($path !== '/' && substr($path, -1) === '/') {
     $path = rtrim($path, '/');
 }
 
 $method = $_SERVER['REQUEST_METHOD'];
 
-// 3. Système de routage (Mise en correspondance)
-if ($path === '/register' && $method === 'POST') {
+if ($path === '/health' && $method === 'GET') {
+    echo json_encode(['status' => 'ok']);
+    exit;
+} elseif ($path === '/register' && $method === 'POST') {
     (new AuthController($pdo))->register();
 } elseif ($path === '/login' && $method === 'POST') {
     (new AuthController($pdo))->login();
@@ -92,12 +107,11 @@ if ($path === '/register' && $method === 'POST') {
     (new ReviewController($pdo))->getReviews();
 } elseif ($path === '/reviews' && $method === 'POST') {
     (new ReviewController($pdo))->addOrUpdateReview();
-}elseif (preg_match('/^\/clubs\/(\d+)$/', $path, $matches) && $method === 'GET') {
+} elseif (preg_match('/^\/clubs\/(\d+)$/', $path, $matches) && $method === 'GET') {
     (new ClubController($pdo))->getClubById($matches[1]);
 } elseif ($path === '/profile' && $method === 'POST') {
     (new ProfileController($pdo))->saveProfile();
 } else {
-    // Si l'erreur persiste, on renvoie la route détectée pour vous aider à débugger
     http_response_code(404);
     echo json_encode([
         'error' => 'Endpoint non trouvé',

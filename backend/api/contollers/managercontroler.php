@@ -1,6 +1,7 @@
 <?php
 // api/controllers/ManagerController.php (extrait modifié)
 require_once __DIR__ . '/../middleware/authmiddleware.php';
+require_once __DIR__ . '/../utils/storage.php';
 
 class managercontroler{
     private $pdo;
@@ -51,17 +52,13 @@ public function createCenter(){
         return;
     }
 
-    // Gestion des images uploadées
+    // Gestion des images uploadées (local OU Cloudflare R2 via Storage::driver())
     $uploadedImages = [];
     if (isset($_FILES['images'])) {
-        $uploadDir = __DIR__ . '/../../uploads/centers/';
-        if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
         foreach ($_FILES['images']['tmp_name'] as $key => $tmpName) {
             if ($_FILES['images']['error'][$key] === UPLOAD_ERR_OK) {
-                $filename = uniqid() . '_' . basename($_FILES['images']['name'][$key]);
-                if (move_uploaded_file($tmpName, $uploadDir . $filename)) {
-                    $uploadedImages[] = 'uploads/centers/' . $filename;
-                }
+                $url = Storage::uploadCenterImage($tmpName, $_FILES['images']['name'][$key]);
+                if ($url) $uploadedImages[] = $url;
             }
         }
     }
@@ -128,14 +125,10 @@ public function updateCenter($id) {
 
     $uploadedImages = $oldImages; // on garde les anciennes
     if (isset($_FILES['images'])) {
-        $uploadDir = __DIR__ . '/../../uploads/centers/';
-        if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
         foreach ($_FILES['images']['tmp_name'] as $key => $tmpName) {
             if ($_FILES['images']['error'][$key] === UPLOAD_ERR_OK) {
-                $filename = uniqid() . '_' . basename($_FILES['images']['name'][$key]);
-                if (move_uploaded_file($tmpName, $uploadDir . $filename)) {
-                    $uploadedImages[] = 'uploads/centers/' . $filename;
-                }
+                $url = Storage::uploadCenterImage($tmpName, $_FILES['images']['name'][$key]);
+                if ($url) $uploadedImages[] = $url;
             }
         }
     }

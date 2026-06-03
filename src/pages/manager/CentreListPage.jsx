@@ -4,11 +4,11 @@
 // Les données sont pour l'instant mockées (centersMock) mais l'intégration API est commentée.
 
 import { useState, useEffect } from 'react';
-import Header from '../../components/layout/Header';
-import Footer from '../../components/layout/Footer';
+import Header from '../../components/Layout/Header';
+import Footer from '../../components/Layout/Footer';
 import Button from '../../components/common/Button';
-import CenterTable from '../../components/manager/CenterTable';
-import CenterFormModal from '../../components/manager/CenterFormModal';
+import CenterTable from '../../components/Manager/CenterTable';
+import CenterFormModal from '../../components/Manager/CenterFormModal';
 
 // Données mockées (simule une réponse API)
 // Chaque centre appartient à un manager via managerId. Pour les tests, on suppose managerId = 1.

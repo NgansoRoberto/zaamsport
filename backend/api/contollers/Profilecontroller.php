@@ -1,6 +1,6 @@
 <?php
 // api/controllers/ProfileController.php
-require_once __DIR__ . '/../middleware/Authmiddleware.php';
+require_once __DIR__ . '/../middleware/authmiddleware.php';
 
 class ProfileController {
     private $pdo;
@@ -8,7 +8,7 @@ class ProfileController {
 
     public function saveProfile() {
         // En-têtes CORS indispensables pour éviter le blocage du navigateur (ORB / CORS)
-        header("Access-Control-Allow-Origin: http://localhost:5173"); 
+        // CORS désormais géré centralement dans index.php via la variable d'env CORS_ORIGIN
         header("Access-Control-Allow-Headers: Content-Type, Authorization");
         header("Access-Control-Allow-Methods: POST, OPTIONS");
         

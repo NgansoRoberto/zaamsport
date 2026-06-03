@@ -1,0 +1,55 @@
+# Render Blueprint pour ZaamSport
+# Docs: https://render.com/docs/blueprint-spec
+#
+# Ce fichier permet de provisionner les 2 services Render en un clic
+# une fois le repo connecté ("New + → Blueprint").
+# La base PostgreSQL (Neon ou Supabase) est gérée HORS Render — on
+# la branche via la variable d'env DATABASE_URL.
+
+services:
+  # ---------- BACKEND PHP ----------
+  - type: web
+    name: zaamsport-api
+    runtime: docker
+    plan: starter            # ~7$/mois ; passer en "free" pour tester (s'endort)
+    region: frankfurt        # à ajuster (frankfurt / oregon / singapore...)
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /health
+    envVars:
+      - key: APP_DEBUG
+        value: "0"
+      - key: JWT_SECRET
+        generateValue: true                  # Render génère une clé aléatoire
+      - key: CORS_ORIGIN
+        sync: false                          # à remplir manuellement = URL frontend
+      - key: DATABASE_URL
+        sync: false                          # à coller : Neon/Supabase connection string
+      - key: STORAGE_DRIVER
+        value: r2
+      - key: R2_ENDPOINT
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_PUBLIC_URL
+        sync: false
+
+  # ---------- FRONTEND VITE ----------
+  - type: web
+    name: zaamsport-web
+    runtime: static
+    plan: free
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    pullRequestPreviewsEnabled: false
+    routes:
+      - type: rewrite        # SPA fallback
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_BASE_URL
+        sync: false          # ex: https://zaamsport-api.onrender.com

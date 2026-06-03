@@ -9,15 +9,32 @@ class AuthController {
 
     public function register() {
         $data = json_decode(file_get_contents('php://input'), true);
-        $email = $data['email'] ?? '';
+        $email = trim($data['email'] ?? '');
         $password = $data['password'] ?? '';
-        $role = $data['role'] ?? 'user';
-        $nom = $data['nom'] ?? '';
-        $prenom = $data['prenom'] ?? '';
+        $nom = trim($data['nom'] ?? '');
+        $prenom = trim($data['prenom'] ?? '');
+
+        // Sécurité : on n'accepte plus que les rôles "user" et "manager" via l'inscription publique.
+        // Les comptes admin doivent être promus manuellement en BD ou via un endpoint admin protégé.
+        $requestedRole = $data['role'] ?? 'user';
+        $allowedRoles = ['user', 'manager'];
+        $role = in_array($requestedRole, $allowedRoles, true) ? $requestedRole : 'user';
 
         if (!$email || !$password) {
             http_response_code(400);
             echo json_encode(['error' => 'Email et mot de passe requis']);
+            return;
+        }
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Email invalide']);
+            return;
+        }
+
+        if (strlen($password) < 8) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Le mot de passe doit faire au moins 8 caractères']);
             return;
         }
 
@@ -35,45 +52,26 @@ class AuthController {
     }
 
     public function login() {
-    $data = json_decode(file_get_contents('php://input'), true);
-    
-    // Si le Front-end envoie de mauvaises clés (ex: username au lieu d'email)
-    $email = $data['email'] ?? '';
-    $password = $data['password'] ?? '';
+        $data = json_decode(file_get_contents('php://input'), true);
+        $email = trim($data['email'] ?? '');
+        $password = $data['password'] ?? '';
 
-    $userModel = new User($this->pdo);
-    $user = $userModel->findByEmail($email);
+        $userModel = new User($this->pdo);
+        $user = $userModel->findByEmail($email);
 
-    //  ZONE DE TEST TEMPORAIRE 
-    if (!$user) {
-        http_response_code(401);
+        // Réponse uniforme en cas d'échec (ne révèle pas si l'email existe et ne leak rien).
+        if (!$user || !password_verify($password, $user['password_hash'])) {
+            http_response_code(401);
+            echo json_encode(['error' => 'Identifiants incorrects']);
+            return;
+        }
+
+        $token = JwtHelper::generate($user['id'], $user['email'], $user['role']);
         echo json_encode([
-            'error' => 'Identifiants incorrects',
-            'debug_systeme' => 'Email non trouvé en base de données',
-            'email_recu_par_php' => $email
+            'token' => $token,
+            'role' => $user['role'],
+            'userId' => $user['id'],
+            'managerId' => ($user['role'] === 'manager') ? $user['id'] : null
         ]);
-        return;
     }
-
-    if (!password_verify($password, $user['password_hash'])) {
-        http_response_code(401);
-        echo json_encode([
-            'error' => 'Identifiants incorrects',
-            'debug_systeme' => 'Utilisateur trouvé, mais le mot de passe ne correspond pas au hash',
-            'hash_actuel_en_bdd' => $user['password_hash'],
-            'mot_de_passe_saisi' => $password
-        ]);
-        return;
-    }
-    //  FIN DE LA ZONE DE TEST 
-
-    $token = JwtHelper::generate($user['id'], $user['email'], $user['role']);
-    echo json_encode([
-        'token' => $token,
-        'role' => $user['role'],
-        'userId' => $user['id'],
-        'managerId' => ($user['role'] === 'manager') ? $user['id'] : null
-    ]);
 }
-}
-?>

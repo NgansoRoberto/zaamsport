@@ -1,5 +1,5 @@
 // src/components/admin/CenterValidationTable.jsx
-import StatutsBadge from '../../components/manager/StatutsBadge';
+import StatutsBadge from '../../components/Manager/StatutsBadge';
 import { CheckCircle, XCircle, Eye } from 'lucide-react';
 
 function ValidationCentre({ centers, onApprove, onReject, onViewDetails }) {
