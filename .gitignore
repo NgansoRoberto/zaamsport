@@ -1,0 +1,29 @@
+# Variables d'environnement
+backend/api/.env
+front/.env
+front/.env.local
+
+# Dépendances
+backend/api/vendor/
+front/node_modules/
+
+# Uploads locaux
+backend/uploads/centers/*
+!backend/uploads/centers/.gitkeep
+
+# Logs
+backend/api/php_errors.log
+front/logs/
+*.log
+
+# Build
+front/dist/
+front/dist-ssr/
+
+# Editeurs
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.suo
+*.sw?
