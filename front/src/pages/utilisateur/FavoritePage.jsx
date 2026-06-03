@@ -66,10 +66,6 @@ function Clubs() {
   const [userReview, setUserReview] = useState(null);
   const [isMobile, setIsMobile] = useState(false);
 
-  const userProfile = useMemo(() => {
-    const stored = localStorage.getItem("userProfile");
-    return stored ? JSON.parse(stored) : null;
-  }, []);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
@@ -88,7 +84,7 @@ function Clubs() {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       let data = await response.json();
       if (Array.isArray(data)) {
-        const baseUrl = import.meta.env.VITE_API_BASE_URL.replace('/api', '');
+        const baseUrl = window.location.origin;
         data = data.map(center => ({
           ...center,
           images: center.images && Array.isArray(center.images)

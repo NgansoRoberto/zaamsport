@@ -1,11 +1,15 @@
 {
   "rewrites": [
     {
+      "source": "/api",
+      "destination": "https://zaamsport-api.onrender.com/"
+    },
+    {
       "source": "/api/:path*",
       "destination": "https://zaamsport-api.onrender.com/:path*"
     },
     {
-      "source": "/((?!api).*)",
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ]
