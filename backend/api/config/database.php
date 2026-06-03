@@ -33,6 +33,7 @@ try {
     if ($databaseUrl) {
         $cfg = build_dsn_from_url($databaseUrl);
         if (!$cfg) throw new Exception('DATABASE_URL invalide');
+        error_log('[DB] Connexion via DATABASE_URL → host=' . parse_url($databaseUrl, PHP_URL_HOST));
         $pdo = new PDO($cfg['dsn'], $cfg['user'], $cfg['password']);
     } else {
         $host = getenv('DB_HOST') ?: 'localhost';
@@ -40,12 +41,15 @@ try {
         $dbname = getenv('DB_NAME') ?: 'lamfunsport';
         $user = getenv('DB_USER') ?: 'postgres';
         $password = getenv('DB_PASSWORD') ?: 'kenko';
+        error_log("[DB] Connexion via vars séparées → host=$host port=$port dbname=$dbname");
         $pdo = new PDO("pgsql:host=$host;port=$port;dbname=$dbname", $user, $password);
     }
 
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+    error_log('[DB] Connexion établie avec succès');
 } catch (Throwable $e) {
+    error_log('[DB] ERREUR connexion : ' . $e->getMessage());
     http_response_code(500);
     echo json_encode([
         'error' => 'Erreur de connexion à la base de données',

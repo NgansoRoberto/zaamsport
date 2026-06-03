@@ -1,5 +1,6 @@
 api/vendor
 api/uploads
+api/.env
 api/php_errors.log
 api/info.php
 api/text_hash.php

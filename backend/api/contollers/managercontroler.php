@@ -52,7 +52,7 @@ public function createCenter(){
         return;
     }
 
-    // Gestion des images uploadées (local OU Cloudflare R2 via Storage::driver())
+    // Gestion des images uploadées (local OU Cloudinary via Storage::driver())
     $uploadedImages = [];
     if (isset($_FILES['images'])) {
         foreach ($_FILES['images']['tmp_name'] as $key => $tmpName) {

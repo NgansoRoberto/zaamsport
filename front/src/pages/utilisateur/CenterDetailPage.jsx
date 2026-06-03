@@ -46,7 +46,7 @@ function ImageCarousel({ images }) {
     // Transformation des images (comme dans ClubsPage)
     const baseUrl = import.meta.env.VITE_API_BASE_URL.replace('/api', '');
     if (data.images && Array.isArray(data.images)) {
-      data.images = data.images.map(img => `${baseUrl}/${img}`);
+      data.images = data.images.map(img => img.startsWith('http') ? img : `${baseUrl}/${img}`);
     }
     setClub(data);
   } catch (err) {

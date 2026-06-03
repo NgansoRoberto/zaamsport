@@ -1,7 +1,6 @@
 {
     "require": {
-        "firebase/php-jwt": "^6.4",
-        "aws/aws-sdk-php": "^3.300"
+        "firebase/php-jwt": "^6.4"
     },
     "config": {
         "audit": {

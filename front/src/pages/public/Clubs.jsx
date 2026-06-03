@@ -110,7 +110,7 @@ function Clubs() {
         data = data.map(center => ({
           ...center,
           images: center.images && Array.isArray(center.images)
-            ? center.images.map(img => `${baseUrl}/${img}`)
+            ? center.images.map(img => img.startsWith('http') ? img : `${baseUrl}/${img}`)
             : []
         }));
       }

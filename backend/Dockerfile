@@ -1,14 +1,15 @@
 FROM php:8.4-apache
 
-# Dépendances système pour PostgreSQL + PostGIS clients
+# Dépendances système
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libpq-dev \
+        libcurl4-openssl-dev \
         unzip \
         git \
     && rm -rf /var/lib/apt/lists/*
 
-# Extensions PHP
-RUN docker-php-ext-install pdo pdo_pgsql pgsql
+# Extensions PHP (curl requis pour Cloudinary)
+RUN docker-php-ext-install pdo pdo_pgsql pgsql curl
 
 # Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer

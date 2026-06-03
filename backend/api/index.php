@@ -1,4 +1,24 @@
 <?php
+// Chargement du fichier .env (dev local uniquement — en prod les vars sont injectées par Render)
+$envFile = __DIR__ . '/.env';
+if (is_file($envFile)) {
+    $loaded = [];
+    foreach (file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
+        if ($line[0] === '#' || strpos($line, '=') === false) continue;
+        [$key, $val] = explode('=', $line, 2);
+        $key = trim($key);
+        $val = trim($val);
+        if ($key !== '' && getenv($key) === false) {
+            putenv("$key=$val");
+            $_ENV[$key] = $val;
+            $loaded[] = $key;
+        }
+    }
+    error_log('[ENV] .env chargé : ' . implode(', ', $loaded));
+} else {
+    error_log('[ENV] Pas de .env trouvé — variables système utilisées');
+}
+
 error_reporting(E_ALL);
 ini_set('display_errors', getenv('APP_DEBUG') === '1' ? '1' : '0');
 ini_set('log_errors', 1);
@@ -26,21 +46,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-function json_error($message, $code = 500) {
+$debug = getenv('APP_DEBUG') === '1';
+
+function json_error($message, $code = 500, $detail = null) {
+    global $debug;
     http_response_code($code);
-    echo json_encode(['error' => $message]);
+    $body = ['error' => $message];
+    if ($debug && $detail) $body['detail'] = $detail;
+    echo json_encode($body);
     exit;
 }
 
 register_shutdown_function(function() {
     $error = error_get_last();
     if ($error && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR])) {
-        json_error('Erreur interne du serveur', 500);
+        $detail = $error['message'] . ' in ' . $error['file'] . ':' . $error['line'];
+        error_log('[SHUTDOWN] ' . $detail);
+        json_error('Erreur interne du serveur', 500, $detail);
     }
 });
 
 set_exception_handler(function($e) {
-    json_error($e->getMessage(), 500);
+    $detail = get_class($e) . ': ' . $e->getMessage()
+        . ' in ' . $e->getFile() . ':' . $e->getLine()
+        . "\n" . $e->getTraceAsString();
+    error_log('[EXCEPTION] ' . $detail);
+    json_error($e->getMessage(), 500, $detail);
 });
 
 require_once __DIR__ . '/config/database.php';
@@ -75,6 +106,7 @@ if ($path !== '/' && substr($path, -1) === '/') {
 }
 
 $method = $_SERVER['REQUEST_METHOD'];
+error_log("[ROUTER] $method $path");
 
 if ($path === '/health' && $method === 'GET') {
     echo json_encode(['status' => 'ok']);
