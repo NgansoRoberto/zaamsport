@@ -25,7 +25,7 @@ class managercontroler{
             $c['equipment'] = json_decode($c['equipment'], true) ?? [];
             $c['hours'] = json_decode($c['hours'], true) ?? [];
             $c['prices'] = json_decode($c['prices'], true) ?? [];
-            $c['images'] = json_decode($c['images'], true) ?? [];
+            $c['images'] = normalize_images(json_decode($c['images'], true) ?? []);
         }
         echo json_encode($centers);
     }

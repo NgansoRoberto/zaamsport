@@ -5,23 +5,12 @@
 // Backend choisi via la variable d'environnement STORAGE_DRIVER :
 //   - "local"      (défaut) : enregistre dans uploads/centers/ et renvoie une URL relative.
 //   - "cloudinary" : envoie vers Cloudinary et renvoie l'URL publique sécurisée.
-//
-// Variables Cloudinary attendues :
-//   CLOUDINARY_CLOUD_NAME   ex: myapp
-//   CLOUDINARY_API_KEY      ex: 123456789012345
-//   CLOUDINARY_API_SECRET   ex: aBcDeFgHiJkLmNoPqRsTuVwXyZ
 
 class Storage {
     public static function driver() {
         return getenv('STORAGE_DRIVER') ?: 'local';
     }
 
-    /**
-     * Upload un fichier issu de $_FILES (tmp path) et renvoie l'URL accessible publiquement.
-     * @param string $tmpPath chemin temporaire du fichier
-     * @param string $originalName nom d'origine
-     * @return string|null url de l'image, ou null en cas d'échec
-     */
     public static function uploadCenterImage($tmpPath, $originalName) {
         if (self::driver() === 'cloudinary') {
             return self::uploadToCloudinary($tmpPath, $originalName);
@@ -29,8 +18,62 @@ class Storage {
         return self::uploadToLocal($tmpPath, $originalName);
     }
 
+    // ── Compression GD ──────────────────────────────────────────────────────────
+    // Redimensionne + recompresse si > 8 MB ou > 1920px.
+    // Retourne le chemin du fichier à uploader (tmp si compressé, original sinon).
+    private static function compress(string $sourcePath): string {
+        $limitBytes = 8 * 1024 * 1024;
+        $maxDim     = 1920;
+
+        if (!function_exists('imagecreatefromjpeg')) return $sourcePath;
+
+        $size = filesize($sourcePath);
+        $mime = mime_content_type($sourcePath) ?: '';
+
+        $src = match(true) {
+            str_contains($mime, 'jpeg'), str_contains($mime, 'jpg') => @imagecreatefromjpeg($sourcePath),
+            str_contains($mime, 'png')  => @imagecreatefrompng($sourcePath),
+            str_contains($mime, 'webp') => function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($sourcePath) : null,
+            default                     => null,
+        };
+
+        if (!$src) return $sourcePath;
+
+        $w = imagesx($src);
+        $h = imagesy($src);
+
+        $needsResize = ($w > $maxDim || $h > $maxDim);
+        $needsCompress = ($size > $limitBytes);
+
+        if (!$needsResize && !$needsCompress) {
+            imagedestroy($src);
+            return $sourcePath;
+        }
+
+        if ($needsResize) {
+            $ratio = min($maxDim / $w, $maxDim / $h);
+            $nw = (int)($w * $ratio);
+            $nh = (int)($h * $ratio);
+            $dst = imagecreatetruecolor($nw, $nh);
+            // Préserver la transparence PNG
+            imagealphablending($dst, false);
+            imagesavealpha($dst, true);
+            imagecopyresampled($dst, $src, 0, 0, 0, 0, $nw, $nh, $w, $h);
+            imagedestroy($src);
+            $src = $dst;
+        }
+
+        $tmpPath = tempnam(sys_get_temp_dir(), 'zs_img_') . '.jpg';
+        imagejpeg($src, $tmpPath, 82);
+        imagedestroy($src);
+
+        error_log('[Storage] Image compressée : ' . round($size / 1024 / 1024, 2) . ' MB → ' . round(filesize($tmpPath) / 1024 / 1024, 2) . ' MB');
+        return $tmpPath;
+    }
+
+    // ── Drivers ─────────────────────────────────────────────────────────────────
     private static function uploadToLocal($tmpPath, $originalName) {
-        $filename = uniqid() . '_' . basename($originalName);
+        $filename  = uniqid() . '_' . basename($originalName);
         $uploadDir = __DIR__ . '/../../uploads/centers/';
         if (!is_dir($uploadDir)) @mkdir($uploadDir, 0775, true);
         if (move_uploaded_file($tmpPath, $uploadDir . $filename)) {
@@ -49,36 +92,37 @@ class Storage {
             return null;
         }
 
-        $timestamp  = time();
-        $folder     = 'zaamsport/centers';
-        $publicId   = $folder . '/' . uniqid();
+        // Compression avant upload
+        $pathToUpload = self::compress($tmpPath);
+        $isTmp = ($pathToUpload !== $tmpPath);
 
-        // Signature Cloudinary : sha1 des paramètres triés + apiSecret
+        $timestamp = time();
+        $folder    = 'zaamsport/centers';
+        $publicId  = uniqid();
+
         $paramsToSign = "folder={$folder}&public_id={$publicId}&timestamp={$timestamp}";
         $signature    = sha1($paramsToSign . $apiSecret);
 
-        $url = "https://api.cloudinary.com/v1_1/{$cloudName}/image/upload";
-
-        $postFields = [
-            'file'      => new CURLFile($tmpPath, mime_content_type($tmpPath) ?: 'image/jpeg', basename($originalName)),
-            'api_key'   => $apiKey,
-            'timestamp' => $timestamp,
-            'folder'    => $folder,
-            'public_id' => $publicId,
-            'signature' => $signature,
-        ];
-
-        $ch = curl_init($url);
+        $ch = curl_init("https://api.cloudinary.com/v1_1/{$cloudName}/image/upload");
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => $postFields,
-            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_POSTFIELDS     => [
+                'file'      => new CURLFile($pathToUpload, 'image/jpeg', basename($originalName)),
+                'api_key'   => $apiKey,
+                'timestamp' => $timestamp,
+                'folder'    => $folder,
+                'public_id' => $publicId,
+                'signature' => $signature,
+            ],
+            CURLOPT_TIMEOUT => 60,
         ]);
 
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
+
+        if ($isTmp) @unlink($pathToUpload);
 
         if ($httpCode !== 200 || !$response) {
             error_log('Storage Cloudinary erreur HTTP ' . $httpCode . ': ' . $response);

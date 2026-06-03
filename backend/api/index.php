@@ -75,6 +75,7 @@ set_exception_handler(function($e) {
 });
 
 require_once __DIR__ . '/config/database.php';
+require_once __DIR__ . '/utils/imagehelper.php';
 require_once __DIR__ . '/contollers/Authcontroller.php';
 require_once __DIR__ . '/contollers/clubscontroler.php';
 require_once __DIR__ . '/contollers/managercontroler.php';

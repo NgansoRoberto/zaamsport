@@ -2,7 +2,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
-import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import Header from '../../components/Layout/Header';
 import Footer from '../../components/Layout/Footer';
@@ -11,16 +10,6 @@ import Toggle from '../../components/common/Toggle';
 import FilterBar from '../../components/common/FilterBar';
 import CenterCard from '../../components/common/CenterCard';
 
-import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
-import markerIcon from 'leaflet/dist/images/marker-icon.png';
-import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: markerIcon2x,
-  iconUrl: markerIcon,
-  shadowUrl: markerShadow,
-});
 
 function ChangeView({ center, zoom }) {
   const map = useMap();

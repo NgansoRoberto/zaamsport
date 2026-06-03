@@ -21,35 +21,104 @@ function connectDb() {
     return $pdo;
 }
 
-// Upload vers Cloudinary
+// Compression GD (max 8 MB / 1920px)
+function compressImage(string $src): string {
+    $limit = 8 * 1024 * 1024;
+    $maxDim = 1920;
+    if (!function_exists('imagecreatefromjpeg') || filesize($src) <= $limit) return $src;
+    $mime = mime_content_type($src) ?: '';
+    $im = match(true) {
+        str_contains($mime, 'jpeg'), str_contains($mime, 'jpg') => @imagecreatefromjpeg($src),
+        str_contains($mime, 'png')  => @imagecreatefrompng($src),
+        str_contains($mime, 'webp') => function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($src) : null,
+        default => null,
+    };
+    if (!$im) return $src;
+    $w = imagesx($im); $h = imagesy($im);
+    if ($w > $maxDim || $h > $maxDim) {
+        $r = min($maxDim/$w, $maxDim/$h);
+        $dst = imagecreatetruecolor((int)($w*$r), (int)($h*$r));
+        imagealphablending($dst, false); imagesavealpha($dst, true);
+        imagecopyresampled($dst, $im, 0, 0, 0, 0, (int)($w*$r), (int)($h*$r), $w, $h);
+        imagedestroy($im); $im = $dst;
+    }
+    $tmp = tempnam(sys_get_temp_dir(), 'zs_') . '.jpg';
+    imagejpeg($im, $tmp, 82);
+    imagedestroy($im);
+    return $tmp;
+}
+
+// Upload vers Cloudinary (avec compression)
 function uploadToCloudinary($tmpPath, $originalName) {
     $cloudName = getenv('CLOUDINARY_CLOUD_NAME');
     $apiKey    = getenv('CLOUDINARY_API_KEY');
     $apiSecret = getenv('CLOUDINARY_API_SECRET');
+
+    $pathToUpload = compressImage($tmpPath);
+    $isTmp = ($pathToUpload !== $tmpPath);
+
     $timestamp = time();
     $folder    = 'zaamsport/centers';
-    $publicId  = $folder . '/' . uniqid();
+    $publicId  = uniqid();
     $signature = sha1("folder={$folder}&public_id={$publicId}&timestamp={$timestamp}" . $apiSecret);
+
     $ch = curl_init("https://api.cloudinary.com/v1_1/{$cloudName}/image/upload");
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_POST           => true,
         CURLOPT_POSTFIELDS     => [
-            'file'      => new CURLFile($tmpPath, mime_content_type($tmpPath) ?: 'image/jpeg', $originalName),
+            'file'      => new CURLFile($pathToUpload, 'image/jpeg', $originalName),
             'api_key'   => $apiKey,
             'timestamp' => $timestamp,
             'folder'    => $folder,
             'public_id' => $publicId,
             'signature' => $signature,
         ],
+        CURLOPT_TIMEOUT => 60,
+    ]);
+    $res  = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($isTmp) @unlink($pathToUpload);
+    if ($code !== 200) return ['error' => 'Upload échoué (HTTP ' . $code . '): ' . $res];
+    $data = json_decode($res, true);
+    return isset($data['secure_url']) ? ['url' => $data['secure_url']] : ['error' => 'Réponse inattendue: ' . $res];
+}
+
+// Renomme un asset sur Cloudinary (pour corriger les URLs dupliquées)
+function cloudinaryRename(string $fromPublicId, string $toPublicId): array {
+    $cloudName = getenv('CLOUDINARY_CLOUD_NAME');
+    $apiKey    = getenv('CLOUDINARY_API_KEY');
+    $apiSecret = getenv('CLOUDINARY_API_SECRET');
+    $timestamp = time();
+    $signature = sha1("from_public_id={$fromPublicId}&timestamp={$timestamp}&to_public_id={$toPublicId}" . $apiSecret);
+    $ch = curl_init("https://api.cloudinary.com/v1_1/{$cloudName}/image/rename");
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => [
+            'from_public_id' => $fromPublicId,
+            'to_public_id'   => $toPublicId,
+            'api_key'        => $apiKey,
+            'timestamp'      => $timestamp,
+            'signature'      => $signature,
+        ],
         CURLOPT_TIMEOUT => 30,
     ]);
     $res  = curl_exec($ch);
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
-    if ($code !== 200) return ['error' => 'Upload échoué (HTTP ' . $code . '): ' . $res];
     $data = json_decode($res, true);
-    return isset($data['secure_url']) ? ['url' => $data['secure_url']] : ['error' => 'Réponse inattendue: ' . $res];
+    return ($code === 200 && !empty($data['secure_url']))
+        ? ['url' => $data['secure_url']]
+        : ['error' => 'Rename échoué (HTTP ' . $code . '): ' . $res];
+}
+
+// Extrait le public_id depuis une URL Cloudinary
+function extractPublicId(string $url): string {
+    // ex: .../image/upload/v123/zaamsport/centers/zaamsport/centers/abc.jpg → zaamsport/centers/zaamsport/centers/abc
+    if (preg_match('!/image/upload/(?:v\d+/)?(.+?)(?:\.\w+)?$!', $url, $m)) return $m[1];
+    return '';
 }
 
 $pdo = connectDb();
@@ -59,6 +128,31 @@ $messageType = 'success';
 // --- Actions POST ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
+
+    // Corriger une URL dupliquée (zaamsport/centers/zaamsport/centers/... → zaamsport/centers/...)
+    if ($action === 'fix_duplicate_url') {
+        $centerId = intval($_POST['center_id']);
+        $index    = intval($_POST['img_index']);
+        $oldUrl   = trim($_POST['old_url']);
+        $fromId   = extractPublicId($oldUrl);
+        // Corriger le public_id : zaamsport/centers/zaamsport/centers/X → zaamsport/centers/X
+        $toId = preg_replace('!^(zaamsport/centers/)zaamsport/centers/!', '$1', $fromId);
+        if ($fromId === $toId) {
+            $message = "URL déjà correcte, pas de doublon détecté."; $messageType = 'error';
+        } else {
+            $result = cloudinaryRename($fromId, $toId);
+            if (isset($result['error'])) {
+                $message = $result['error']; $messageType = 'error';
+            } else {
+                $stmt = $pdo->prepare("SELECT images FROM fitness_centers WHERE id = ?");
+                $stmt->execute([$centerId]);
+                $images = json_decode($stmt->fetchColumn(), true) ?? [];
+                $images[$index] = $result['url'];
+                $pdo->prepare("UPDATE fitness_centers SET images = ? WHERE id = ?")->execute([json_encode($images), $centerId]);
+                $message = "URL corrigée : " . $result['url'];
+            }
+        }
+    }
 
     // Mettre à jour l'URL d'une image manuellement
     if ($action === 'update_url') {
@@ -185,6 +279,7 @@ $orphanFiles = array_filter($localFiles, fn($f) => !isset($referencedLocal['uplo
   .img-slot { background: #0f172a; border: 1px solid #334155; border-radius: 8px; width: 160px; overflow: hidden; }
   .img-slot.local { border-color: #b45309; }
   .img-slot.cloud { border-color: #0369a1; }
+  .img-slot.duplicate { border-color: #7c3aed; }
   .img-preview { width: 100%; height: 100px; object-fit: cover; display: block; }
   .img-preview-placeholder { width: 100%; height: 100px; display: flex; align-items: center; justify-content: center; font-size: 28px; background: #1e293b; }
   .img-meta { padding: 8px; }
@@ -268,10 +363,12 @@ $orphanFiles = array_filter($localFiles, fn($f) => !isset($referencedLocal['uplo
       <div class="images-grid">
         <?php foreach ($images as $idx => $img):
           $isLocal = !str_starts_with($img, 'http');
+          $isDuplicate = !$isLocal && str_contains($img, 'zaamsport/centers/zaamsport/centers/');
           $localFull = $isLocal ? (__DIR__ . '/../backend/' . ltrim($img, '/')) : null;
           $fileExists = $localFull && file_exists($localFull);
+          $slotClass = $isLocal ? 'local' : ($isDuplicate ? 'duplicate' : 'cloud');
         ?>
-        <div class="img-slot <?= $isLocal ? 'local' : 'cloud' ?>">
+        <div class="img-slot <?= $slotClass ?>">
           <?php if (!$isLocal): ?>
             <img src="<?= htmlspecialchars($img) ?>" class="img-preview" loading="lazy">
           <?php elseif ($fileExists): ?>
@@ -280,9 +377,21 @@ $orphanFiles = array_filter($localFiles, fn($f) => !isset($referencedLocal['uplo
             <div class="img-preview-placeholder">🖼️</div>
           <?php endif; ?>
           <div class="img-meta">
-            <div class="img-type <?= $isLocal ? 'local' : 'cloud' ?>"><?= $isLocal ? '⚠ Local' : '☁ Cloudinary' ?></div>
+            <div class="img-type <?= $isLocal ? 'local' : 'cloud' ?>" style="<?= $isDuplicate ? 'color:#a78bfa' : '' ?>">
+              <?= $isLocal ? '⚠ Local' : ($isDuplicate ? '⚡ URL dupliquée' : '☁ Cloudinary') ?>
+            </div>
             <div class="img-path"><?= htmlspecialchars($isLocal ? basename($img) : substr($img, strrpos($img, '/') + 1)) ?></div>
             <div class="img-actions">
+              <?php if ($isDuplicate): ?>
+              <!-- Corriger URL dupliquée sur Cloudinary -->
+              <form method="POST" onsubmit="return confirm('Renommer le fichier sur Cloudinary et corriger l\'URL ?')">
+                <input type="hidden" name="action" value="fix_duplicate_url">
+                <input type="hidden" name="center_id" value="<?= $center['id'] ?>">
+                <input type="hidden" name="img_index" value="<?= $idx ?>">
+                <input type="hidden" name="old_url" value="<?= htmlspecialchars($img) ?>">
+                <button type="submit" class="btn" style="background:#4c1d95;color:#ddd8fe;width:100%">⚡ Corriger doublon</button>
+              </form>
+              <?php endif; ?>
               <?php if ($isLocal && $fileExists): ?>
               <!-- Migration automatique -->
               <form method="POST">
